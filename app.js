@@ -35,9 +35,6 @@ function createApp() {
     limit: '10mb' 
   }));
 
-  // Rate limiting
-  app.use(security.apiLimiter);
-
   // Request logging
   app.use((req, res, next) => {
     const { logger } = require('./src/utils');

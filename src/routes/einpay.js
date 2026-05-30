@@ -7,7 +7,6 @@ const {
 } = require('../controllers');
 const { 
   validation, 
-  security: { strictLimiter },
   asyncHandler 
 } = require('../middlewares');
 
@@ -20,7 +19,6 @@ const router = express.Router();
  */
 router.post(
   '/deposit',
-  strictLimiter,
   validation.sanitizeBody,
   validation.validateDepositRequest,
   asyncHandler(DepositController.createDeposit.bind(DepositController))
@@ -74,7 +72,6 @@ router.get(
  */
 router.post(
   '/status',
-  strictLimiter,
   validation.validateStatusRequest,
   asyncHandler(StatusController.checkStatus.bind(StatusController))
 );
@@ -96,7 +93,6 @@ router.get(
  */
 router.post(
   '/sync-pending',
-  strictLimiter,
   asyncHandler(StatusController.syncPendingTransactions.bind(StatusController))
 );
 
@@ -107,7 +103,6 @@ router.post(
  */
 router.get(
   '/balance',
-  strictLimiter,
   asyncHandler(BalanceController.getBalance.bind(BalanceController))
 );
 
