@@ -1,0 +1,11 @@
+# Place your PEM files in this directory:
+#
+# Merchant Keys:
+# - private.pem (Your RSA private key)
+# - public.pem (Your RSA public key)
+#
+# EINPAY Keys:
+# - einpay-api-public.pem (EINPAY API public key for verifying responses)
+# - einpay-callback-public.pem (EINPAY callback public key for verifying callbacks)
+#
+# DO NOT commit these files to version control!

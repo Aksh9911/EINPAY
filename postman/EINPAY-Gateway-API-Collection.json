@@ -1,0 +1,437 @@
+{
+  "info": {
+    "_postman_id": "einpay-gateway-v1",
+    "name": "EINPAY Gateway API - ROLLIX777",
+    "description": "Complete API collection for EINPAY Payment Gateway Microservice",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Health & Monitoring",
+      "item": [
+        {
+          "name": "Basic Health Check",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/health",
+              "host": ["{{baseUrl}}"],
+              "path": ["health"]
+            },
+            "description": "Basic health check endpoint"
+          },
+          "response": []
+        },
+        {
+          "name": "Detailed Health",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/health/detailed",
+              "host": ["{{baseUrl}}"],
+              "path": ["health", "detailed"]
+            },
+            "description": "Detailed health check with system information"
+          },
+          "response": []
+        },
+        {
+          "name": "Readiness Check",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/health/ready",
+              "host": ["{{baseUrl}}"],
+              "path": ["health", "ready"]
+            },
+            "description": "Check if all dependencies are ready"
+          },
+          "response": []
+        },
+        {
+          "name": "Liveness Check",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/health/live",
+              "host": ["{{baseUrl}}"],
+              "path": ["health", "live"]
+            },
+            "description": "Check if service is alive"
+          },
+          "response": []
+        },
+        {
+          "name": "Key Status",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/health/keys",
+              "host": ["{{baseUrl}}"],
+              "path": ["health", "keys"]
+            },
+            "description": "Check RSA key status"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Deposits",
+      "item": [
+        {
+          "name": "Create Deposit - UPI",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"amount\": 1000,\n  \"requested_method\": \"UPI\",\n  \"client_user_id\": \"USER123\",\n  \"client_transaction_id\": \"TXN{{$randomInt}}\",\n  \"client_user_ipaddr\": \"{{clientIP}}\",\n  \"device_type\": 20\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/einpay/deposit",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "einpay", "deposit"]
+            },
+            "description": "Create a UPI deposit transaction"
+          },
+          "response": []
+        },
+        {
+          "name": "Create Deposit - Bank Transfer",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"amount\": 5000,\n  \"requested_method\": \"BankTransfer\",\n  \"client_user_id\": \"USER123\",\n  \"client_transaction_id\": \"TXN{{$randomInt}}\",\n  \"client_user_ipaddr\": \"{{clientIP}}\",\n  \"device_type\": 20\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/einpay/deposit",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "einpay", "deposit"]
+            },
+            "description": "Create a Bank Transfer deposit"
+          },
+          "response": []
+        },
+        {
+          "name": "Create Deposit - PhonePe",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"amount\": 2000,\n  \"requested_method\": \"PhonePe\",\n  \"client_user_id\": \"USER456\",\n  \"client_transaction_id\": \"TXN{{$randomInt}}\",\n  \"client_user_ipaddr\": \"{{clientIP}}\",\n  \"device_type\": 20\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/einpay/deposit",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "einpay", "deposit"]
+            },
+            "description": "Create a PhonePe deposit"
+          },
+          "response": []
+        },
+        {
+          "name": "Create Deposit - GooglePay",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"amount\": 1500,\n  \"requested_method\": \"GooglePay\",\n  \"client_user_id\": \"USER789\",\n  \"client_transaction_id\": \"TXN{{$randomInt}}\",\n  \"client_user_ipaddr\": \"{{clientIP}}\",\n  \"device_type\": 20\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/einpay/deposit",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "einpay", "deposit"]
+            },
+            "description": "Create a GooglePay deposit"
+          },
+          "response": []
+        },
+        {
+          "name": "Create Deposit - IMPS",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"amount\": 10000,\n  \"requested_method\": \"IMPS\",\n  \"client_user_id\": \"USER999\",\n  \"client_transaction_id\": \"TXN{{$randomInt}}\",\n  \"client_user_ipaddr\": \"{{clientIP}}\",\n  \"device_type\": 20\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/einpay/deposit",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "einpay", "deposit"]
+            },
+            "description": "Create an IMPS deposit"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Deposit Status",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/einpay/deposit/{{clientTransactionId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "einpay", "deposit", "{{clientTransactionId}}"]
+            },
+            "description": "Get deposit status by client transaction ID"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Pending Deposits",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/einpay/deposits/pending?limit=50",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "einpay", "deposits", "pending"],
+              "query": [
+                {
+                  "key": "limit",
+                  "value": "50"
+                }
+              ]
+            },
+            "description": "Get list of pending deposits"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Transaction Status",
+      "item": [
+        {
+          "name": "Check Transaction Status",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"orders\": [\n    \"TXN001\",\n    \"TXN002\"\n  ]\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/einpay/status",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "einpay", "status"]
+            },
+            "description": "Check status of multiple transactions"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Local Transaction Status",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/einpay/status/{{clientTransactionId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "einpay", "status", "{{clientTransactionId}}"]
+            },
+            "description": "Get transaction status from local database"
+          },
+          "response": []
+        },
+        {
+          "name": "Sync Pending Transactions",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/einpay/sync-pending?limit=50",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "einpay", "sync-pending"],
+              "query": [
+                {
+                  "key": "limit",
+                  "value": "50"
+                }
+              ]
+            },
+            "description": "Sync all pending transactions with EINPAY"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Balance",
+      "item": [
+        {
+          "name": "Get Merchant Balance",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/einpay/balance",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "einpay", "balance"]
+            },
+            "description": "Get current merchant balance"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Detailed Balance",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/einpay/balance/detailed",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "einpay", "balance", "detailed"]
+            },
+            "description": "Get detailed balance with analytics"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Balance History",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/einpay/balance/history?days=30",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "einpay", "balance", "history"],
+              "query": [
+                {
+                  "key": "days",
+                  "value": "30"
+                }
+              ]
+            },
+            "description": "Get balance history"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Callbacks",
+      "item": [
+        {
+          "name": "Test Callback Endpoint",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "text/plain"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJwYXlsb2FkIjp7InRyYW5zYWN0aW9uX2lkIjoiRUlOUEFZMTIzNDUiLCJjbGllbnRfdHJhbnNhY3Rpb25faWQiOiJUWE4xMjMiLCJzdGF0dXMiOiJBUFBST1ZFRCIsImFtb3VudCI6MTAwMCwiY2xpZW50X3VzZXJfaWQiOiJVU0VSMTIzIn19.test_signature"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/einpay/callback",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "einpay", "callback"]
+            },
+            "description": "Test callback endpoint (simulates EINPAY callback - note: signature won't verify with this test token)"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Callback History",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/einpay/callbacks/{{transactionId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "einpay", "callbacks", "{{transactionId}}"]
+            },
+            "description": "Get callback history for a transaction"
+          },
+          "response": []
+        }
+      ]
+    }
+  ],
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "// Generate random transaction ID if not set",
+          "if (!pm.environment.get('clientTransactionId')) {",
+          "    pm.environment.set('clientTransactionId', 'TXN' + Date.now());",
+          "}",
+          "",
+          "// Set default IP if not set",
+          "if (!pm.environment.get('clientIP')) {",
+          "    pm.environment.set('clientIP', '127.0.0.1');",
+          "}"
+        ]
+      }
+    }
+  ],
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "https://einpay.rollix777.com",
+      "type": "string"
+    },
+    {
+      "key": "clientTransactionId",
+      "value": "TXN123456",
+      "type": "string"
+    },
+    {
+      "key": "clientIP",
+      "value": "127.0.0.1",
+      "type": "string"
+    },
+    {
+      "key": "transactionId",
+      "value": "EINPAY12345",
+      "type": "string"
+    }
+  ]
+}
