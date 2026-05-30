@@ -1,6 +1,7 @@
 const createApp = require('./app');
 const config = require('./src/config');
 const { KeyManager } = require('./src/services');
+const db = require('./src/config/database');
 const logger = require('./src/utils/logger');
 
 /**
@@ -27,6 +28,20 @@ async function startServer() {
       console.error('  - public.pem (Your RSA public key)');
       console.error('  - einpay-api-public.pem (EINPAY API public key)');
       console.error('  - einpay-callback-public.pem (EINPAY callback public key)\n');
+      process.exit(1);
+    }
+
+    // Initialize Database Connection
+    try {
+      await db.initialize();
+      logger.info('Database connection established successfully');
+    } catch (dbError) {
+      logger.logError(dbError, { context: 'Server startup - Database initialization failed' });
+      console.error('\n❌ CRITICAL ERROR: Database connection failed');
+      console.error('Please ensure MySQL is running and credentials are correct:');
+      console.error(`  - Host: ${config.database.host}`);
+      console.error(`  - Database: ${config.database.name}`);
+      console.error(`  - User: ${config.database.user}\n`);
       process.exit(1);
     }
 

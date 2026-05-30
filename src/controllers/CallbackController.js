@@ -1,5 +1,6 @@
 const EinpayService = require('../services/EinpayService');
 const RechargeRepository = require('../repositories/RechargeRepository');
+const PlatformService = require('../services/PlatformService');
 const logger = require('../utils/logger');
 
 /**
@@ -192,8 +193,56 @@ class CallbackController {
       }
     );
 
-    // TODO: Integrate with main platform to update user balance
-    // This will be implemented when MySQL integration is added
+    // Call platform APIs to create deposit and update wallet (atomic operation)
+    try {
+      // Extract userId from client_user_id (format: "user_123" or just "123")
+      const callbackData = payload.payload || payload;
+      const clientUserId = callbackData.client_user_id;
+      const amount = parseFloat(callbackData.amount);
+      
+      // Extract numeric userId from client_user_id
+      let userId;
+      if (clientUserId) {
+        const match = clientUserId.toString().match(/(\d+)/);
+        userId = match ? parseInt(match[1], 10) : null;
+      }
+
+      if (!userId || isNaN(amount)) {
+        logger.error('Cannot process platform APIs - missing userId or amount', {
+          operation: 'platform_api_missing_data',
+          correlation_id: correlationId,
+          client_user_id: clientUserId,
+          amount: callbackData.amount
+        });
+        return;
+      }
+
+      // Call both platform APIs atomically
+      const platformResult = await PlatformService.processSuccessfulDeposit({
+        userId,
+        amount,
+        orderId: clientTransactionId
+      }, correlationId);
+
+      logger.info('Platform deposit processed successfully', {
+        operation: 'platform_deposit_success',
+        correlation_id: correlationId,
+        userId,
+        amount,
+        orderId: clientTransactionId,
+        platformResult
+      });
+
+    } catch (error) {
+      // Log error but don't throw - callback was already acknowledged to EINPAY
+      // This requires manual intervention
+      logger.logError(error, {
+        operation: 'platform_deposit_failed',
+        correlation_id: correlationId,
+        client_transaction_id: clientTransactionId,
+        message: 'Deposit table and wallet update failed - requires manual review'
+      });
+    }
   }
 
   /**

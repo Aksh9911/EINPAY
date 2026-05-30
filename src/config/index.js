@@ -65,6 +65,21 @@ const config = {
     }
   },
 
+  database: {
+    host: process.env.DB_HOST || 'localhost',
+    user: process.env.DB_USER || 'root',
+    password: process.env.DB_PASSWORD || '',
+    name: process.env.DB_NAME || 'rollix777',
+    port: parseInt(process.env.DB_PORT, 10) || 3306,
+    tableName: process.env.DB_TABLE_NAME || 'recharge',
+    connectionLimit: 10
+  },
+
+  platform: {
+    baseUrl: process.env.PLATFORM_BASE_URL || 'https://api.rollix777.com',
+    apiKey: process.env.PLATFORM_API_KEY
+  },
+
   paymentMethods: [
     'UPI',
     'Paytm',
