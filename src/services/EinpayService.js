@@ -334,6 +334,143 @@ class EinpayService {
   }
 
   /**
+   * Create a payout (withdrawal) request - Step 1
+   * Calls POST /api/v5/payouts/getform to obtain required_information fields
+   * @param {Object} payoutData - Payout request data
+   * @returns {Promise<Object>} - { request_id, valid_until, required_information }
+   */
+  async createPayoutRequest(payoutData) {
+    try {
+      const publicKeyContent = KeyManager.getMerchantPublicKey();
+
+      const payload = {
+        salt: SaltGenerator.generate(),
+        timestamp: TimestampHelper.getUnixTimestampSeconds().toString(),
+        client_id: this.clientId,
+        transaction_type: 2, // 2 = Payout
+        requested_method: payoutData.requested_method,
+        country_id: this.countryId,
+        currency_id: this.currencyId,
+        amount: payoutData.amount.toString(),
+        client_user_id: payoutData.client_user_id,
+        client_user_ipaddr: payoutData.client_user_ipaddr,
+        client_transaction_id: payoutData.client_transaction_id,
+        client_pub_key: publicKeyContent
+      };
+
+      const wrappedPayload = { payload };
+      const signedJWT = await JWTService.createSignedPayload(wrappedPayload);
+
+      logger.logPayout({
+        operation: 'create_payout_request',
+        client_transaction_id: payoutData.client_transaction_id,
+        amount: payoutData.amount,
+        method: payoutData.requested_method
+      });
+
+      const response = await this.executeWithRetry(() =>
+        this.httpClient.post('/api/v5/payouts/getform', signedJWT)
+      );
+
+      let gatewayResponse;
+      if (typeof response.data === 'string') {
+        gatewayResponse = await JWTService.verifyGatewayJWT(response.data);
+      } else {
+        gatewayResponse = response.data;
+      }
+
+      const responsePayload = gatewayResponse.payload || gatewayResponse;
+
+      logger.logPayout({
+        operation: 'create_payout_response',
+        client_transaction_id: payoutData.client_transaction_id,
+        request_id: responsePayload.request_id,
+        has_required_information: !!(responsePayload.required_information)
+      });
+
+      return {
+        success: true,
+        request_id: responsePayload.request_id,
+        valid_until: responsePayload.valid_until,
+        required_information: responsePayload.required_information || [],
+        gateway_response: responsePayload
+      };
+    } catch (error) {
+      logger.logError(error, {
+        context: 'Create payout request',
+        client_transaction_id: payoutData.client_transaction_id
+      });
+
+      throw this.normalizeError(error);
+    }
+  }
+
+  /**
+   * Submit payout details - Step 2
+   * Calls POST /api/v5/payouts/submit with dynamic submitted_information
+   * @param {Object} submitData - { request_id, submitted_information }
+   * @returns {Promise<Object>} - { status, info, transaction_id, client_transaction_id }
+   */
+  async submitPayout(submitData) {
+    try {
+      const publicKeyContent = KeyManager.getMerchantPublicKey();
+
+      const payload = {
+        salt: SaltGenerator.generate(),
+        timestamp: TimestampHelper.getUnixTimestampSeconds().toString(),
+        request_id: submitData.request_id,
+        submitted_information: submitData.submitted_information,
+        client_pub_key: publicKeyContent
+      };
+
+      const wrappedPayload = { payload };
+      const signedJWT = await JWTService.createSignedPayload(wrappedPayload);
+
+      logger.logPayout({
+        operation: 'submit_payout',
+        request_id: submitData.request_id,
+        field_count: Object.keys(submitData.submitted_information || {}).length
+      });
+
+      const response = await this.executeWithRetry(() =>
+        this.httpClient.post('/api/v5/payouts/submit', signedJWT)
+      );
+
+      let gatewayResponse;
+      if (typeof response.data === 'string') {
+        gatewayResponse = await JWTService.verifyGatewayJWT(response.data);
+      } else {
+        gatewayResponse = response.data;
+      }
+
+      const responsePayload = gatewayResponse.payload || gatewayResponse;
+
+      logger.logPayout({
+        operation: 'submit_payout_response',
+        request_id: submitData.request_id,
+        status: responsePayload.status,
+        transaction_id: responsePayload.transaction_id
+      });
+
+      return {
+        success: true,
+        status: responsePayload.status,
+        info: responsePayload.info,
+        transaction_id: responsePayload.transaction_id,
+        client_transaction_id: responsePayload.client_transaction_id,
+        gateway_response: responsePayload
+      };
+    } catch (error) {
+      logger.logError(error, {
+        context: 'Submit payout',
+        request_id: submitData.request_id
+      });
+
+      throw this.normalizeError(error);
+    }
+  }
+
+  /**
    * Normalize error for consistent handling
    * @param {Error} error - Original error
    * @returns {Error} - Normalized error

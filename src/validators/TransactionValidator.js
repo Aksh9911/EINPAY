@@ -208,6 +208,87 @@ class TransactionValidator {
       errors
     };
   }
+
+  /**
+   * Validate payout create request (Step 1 - getform)
+   * @param {Object} data - Request data
+   * @returns {Object} - { isValid: boolean, errors: string[] }
+   */
+  static validatePayoutCreate(data) {
+    const errors = [];
+
+    // Validate amount
+    if (data.amount === undefined || data.amount === null) {
+      errors.push('amount is required');
+    } else {
+      const numAmount = Number(data.amount);
+      if (isNaN(numAmount) || !Number.isFinite(numAmount)) {
+        errors.push('amount must be a valid number');
+      } else if (numAmount <= 0) {
+        errors.push('amount must be greater than 0');
+      }
+    }
+
+    // Validate requested_method
+    if (!data.requested_method || typeof data.requested_method !== 'string') {
+      errors.push('requested_method is required and must be a string');
+    }
+
+    // Validate client_user_id
+    if (!data.client_user_id || typeof data.client_user_id !== 'string') {
+      errors.push('client_user_id is required and must be a string');
+    } else if (data.client_user_id.length < 1 || data.client_user_id.length > 100) {
+      errors.push('client_user_id must be between 1 and 100 characters');
+    }
+
+    // Validate client_transaction_id
+    if (!data.client_transaction_id || typeof data.client_transaction_id !== 'string') {
+      errors.push('client_transaction_id is required and must be a string');
+    } else if (data.client_transaction_id.length < 3 || data.client_transaction_id.length > 100) {
+      errors.push('client_transaction_id must be between 3 and 100 characters');
+    }
+
+    // Validate client_user_ipaddr
+    const ipValidation = this.validateIPAddress(data.client_user_ipaddr);
+    if (!ipValidation.isValid) {
+      errors.push(...ipValidation.errors);
+    }
+
+    return {
+      isValid: errors.length === 0,
+      errors
+    };
+  }
+
+  /**
+   * Validate payout submit request (Step 2 - submit)
+   * @param {Object} data - Request data
+   * @returns {Object} - { isValid: boolean, errors: string[] }
+   */
+  static validatePayoutSubmit(data) {
+    const errors = [];
+
+    // Validate request_id
+    if (!data.request_id || typeof data.request_id !== 'string') {
+      errors.push('request_id is required and must be a string');
+    } else if (data.request_id.trim().length === 0) {
+      errors.push('request_id cannot be empty');
+    }
+
+    // Validate submitted_information
+    if (!data.submitted_information || typeof data.submitted_information !== 'object') {
+      errors.push('submitted_information is required and must be an object');
+    } else if (Array.isArray(data.submitted_information)) {
+      errors.push('submitted_information must be a plain object, not an array');
+    } else if (Object.keys(data.submitted_information).length === 0) {
+      errors.push('submitted_information cannot be empty');
+    }
+
+    return {
+      isValid: errors.length === 0,
+      errors
+    };
+  }
 }
 
 module.exports = TransactionValidator;

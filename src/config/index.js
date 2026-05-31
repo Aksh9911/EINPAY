@@ -16,7 +16,8 @@ const config = {
     countryId: parseInt(process.env.EINPAY_COUNTRY_ID, 10) || 1,
     currencyId: parseInt(process.env.EINPAY_CURRENCY_ID, 10) || 3,
     trafficLevel: parseInt(process.env.TRAFFIC_LEVEL, 10) || 2,
-    callbackUrl: process.env.CALLBACK_URL || 'http://localhost:3000/api/einpay/callback'
+    callbackUrl: process.env.CALLBACK_URL || 'http://localhost:3000/api/einpay/callback',
+    payoutCallbackUrl: process.env.PAYOUT_CALLBACK_URL || 'http://localhost:3000/api/einpay/payout/callback'
   },
 
   keys: {

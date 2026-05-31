@@ -1,11 +1,15 @@
 const express = require('express');
 const einpayRoutes = require('./einpay');
 const healthRoutes = require('./health');
+const payoutRoutes = require('./payout');
 
 const router = express.Router();
 
 // API Routes
 router.use('/api/einpay', einpayRoutes);
+
+// Payout Routes
+router.use('/api/einpay/payout', payoutRoutes);
 
 // Health Check Routes
 router.use('/health', healthRoutes);

@@ -148,4 +148,11 @@ logger.logDeposit = (data) => {
   });
 };
 
+logger.logPayout = (data) => {
+  logger.info('Payout Operation', {
+    type: 'payout',
+    ...data
+  });
+};
+
 module.exports = logger;

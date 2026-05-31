@@ -62,6 +62,28 @@ const validateCallbackBody = (req, res, next) => {
   next();
 };
 
+// Validate payout create request (Step 1 - getform)
+const validatePayoutCreateRequest = (req, res, next) => {
+  const validation = TransactionValidator.validatePayoutCreate(req.body);
+
+  if (!validation.isValid) {
+    throw new ValidationError('Payout validation failed', validation.errors);
+  }
+
+  next();
+};
+
+// Validate payout submit request (Step 2 - submit)
+const validatePayoutSubmitRequest = (req, res, next) => {
+  const validation = TransactionValidator.validatePayoutSubmit(req.body);
+
+  if (!validation.isValid) {
+    throw new ValidationError('Payout submit validation failed', validation.errors);
+  }
+
+  next();
+};
+
 // Sanitize request body
 const sanitizeBody = (req, res, next) => {
   if (req.body && typeof req.body === 'object') {
@@ -91,5 +113,7 @@ module.exports = {
   validateAmount,
   validateMethod,
   validateCallbackBody,
+  validatePayoutCreateRequest,
+  validatePayoutSubmitRequest,
   sanitizeBody
 };
