@@ -96,7 +96,7 @@ const sanitizeBody = (req, res, next) => {
     }
     
     // Trim string values
-    const stringFields = ['client_transaction_id', 'client_user_id', 'client_user_ipaddr', 'requested_method'];
+    const stringFields = ['client_transaction_id', 'client_user_id', 'client_user_ipaddr', 'requested_method', 'payment_mode'];
     stringFields.forEach(field => {
       if (req.body[field] && typeof req.body[field] === 'string') {
         req.body[field] = req.body[field].trim();

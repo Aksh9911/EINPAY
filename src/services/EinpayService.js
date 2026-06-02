@@ -121,6 +121,24 @@ class EinpayService {
   }
 
   /**
+   * Get client configuration based on payment mode
+   * @param {string} paymentMode - Payment mode (P2P or NATIVE)
+   * @returns {Object} - Client configuration object
+   */
+  getClientConfig(paymentMode) {
+    const mode = paymentMode?.toUpperCase();
+    if (mode && config.einpay.clients[mode]) {
+      return config.einpay.clients[mode];
+    }
+    // Return default configuration if no matching payment mode
+    return {
+      clientId: this.clientId,
+      countryId: this.countryId,
+      currencyId: this.currencyId
+    };
+  }
+
+  /**
    * Create a deposit (payin) transaction
    * @param {Object} depositData - Deposit request data
    * @returns {Promise<Object>} - Deposit response with payment link
@@ -129,15 +147,18 @@ class EinpayService {
     try {
       const publicKeyContent = KeyManager.getMerchantPublicKey();
       
+      // Get client configuration based on payment_mode
+      const clientConfig = this.getClientConfig(depositData.payment_mode);
+      
       // Build EINPAY payload
       const payload = {
         salt: SaltGenerator.generate(),
         timestamp: TimestampHelper.getUnixTimestampSeconds().toString(),
-        client_id: this.clientId,
+        client_id: clientConfig.clientId,
         transaction_type: 1, // 1 = Deposit
         requested_method: depositData.requested_method,
-        country_id: this.countryId,
-        currency_id: this.currencyId,
+        country_id: clientConfig.countryId,
+        currency_id: clientConfig.currencyId,
         traffic_level: this.trafficLevel,
         amount: depositData.amount,
         client_user_id: depositData.client_user_id,
@@ -157,7 +178,9 @@ class EinpayService {
         operation: 'create_deposit',
         client_transaction_id: depositData.client_transaction_id,
         amount: depositData.amount,
-        method: depositData.requested_method
+        method: depositData.requested_method,
+        payment_mode: depositData.payment_mode || 'default',
+        client_id: clientConfig.clientId
       });
 
       // Make API request with retry

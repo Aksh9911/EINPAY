@@ -17,7 +17,22 @@ const config = {
     currencyId: parseInt(process.env.EINPAY_CURRENCY_ID, 10) || 3,
     trafficLevel: parseInt(process.env.TRAFFIC_LEVEL, 10) || 2,
     callbackUrl: process.env.CALLBACK_URL || 'http://localhost:3000/api/einpay/callback',
-    payoutCallbackUrl: process.env.PAYOUT_CALLBACK_URL || 'http://localhost:3000/api/einpay/payout/callback'
+    payoutCallbackUrl: process.env.PAYOUT_CALLBACK_URL || 'http://localhost:3000/api/einpay/payout/callback',
+    // Client configurations for different payment modes
+    clients: {
+      P2P: {
+        clientId: 416,
+        name: 'ROLLIX777_PROD_INR_P2P',
+        countryId: 1,
+        currencyId: 3
+      },
+      NATIVE: {
+        clientId: 417,
+        name: 'ROLLIX777_PROD_INR_NATIVE',
+        countryId: 1,
+        currencyId: 3
+      }
+    }
   },
 
   keys: {

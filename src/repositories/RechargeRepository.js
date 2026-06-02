@@ -75,6 +75,19 @@ class RechargeRepository {
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `;
       
+      // Format payment_mode for database: EINPAY(P2P), EINPAY(NATIVE), or EINPAY
+      let dbPaymentMode;
+      if (data.payment_mode) {
+        const modeUpper = data.payment_mode.toUpperCase();
+        if (modeUpper === 'P2P' || modeUpper === 'NATIVE') {
+          dbPaymentMode = `EINPAY(${modeUpper})`;
+        } else {
+          dbPaymentMode = 'EINPAY';
+        }
+      } else {
+        dbPaymentMode = 'EINPAY';
+      }
+
       const params = [
         data.client_transaction_id,  // recharge_id
         data.client_transaction_id,  // order_id (same as recharge_id)
@@ -82,7 +95,7 @@ class RechargeRepository {
         userMobile,                     // user_mobile (random 10 digit)
         data.amount,                    // recharge_amount
         'INR',                          // recharge_type (fixed)
-        'einpay',                       // payment_mode (fixed)
+        dbPaymentMode,                  // payment_mode: EINPAY(P2P), EINPAY(NATIVE), or EINPAY
         date,                           // date
         time,                           // time
         'PENDING',                      // recharge_status
@@ -96,6 +109,7 @@ class RechargeRepository {
         client_transaction_id: data.client_transaction_id,
         user_id: userId,
         amount: data.amount,
+        payment_mode: dbPaymentMode,
         insert_id: result.insertId
       });
 
@@ -108,7 +122,7 @@ class RechargeRepository {
           user_mobile: userMobile,
           recharge_amount: data.amount,
           recharge_type: 'INR',
-          payment_mode: 'einpay',
+          payment_mode: dbPaymentMode,
           date: date,
           time: time,
           recharge_status: 'PENDING',

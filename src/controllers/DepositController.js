@@ -21,7 +21,8 @@ class DepositController {
         client_transaction_id: depositData.client_transaction_id,
         client_user_id: depositData.client_user_id,
         amount: depositData.amount,
-        method: depositData.requested_method
+        method: depositData.requested_method,
+        payment_mode: depositData.payment_mode
       });
 
       // Check for duplicate transaction
@@ -56,7 +57,8 @@ class DepositController {
         amount: depositData.amount,
         method: depositData.requested_method,
         gateway_transaction_id: depositResult.transaction_id,
-        status: 'pending'
+        status: 'pending',
+        payment_mode: depositData.payment_mode
       });
 
       logger.logDeposit({
