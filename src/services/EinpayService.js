@@ -265,9 +265,23 @@ class EinpayService {
       });
 
       // Make API request with retry
+      const gatewayUrl = `${this.baseURL}/api/v5/txstatus`;
+      console.log('\n========== Curl Request (Order Status) ==========');
+      console.log(`curl -X POST '${gatewayUrl}' \\`);
+      console.log(`  -H 'Content-Type: text/plain' \\`);
+      console.log(`  -H 'Accept: application/json' \\`);
+      console.log(`  -d '${signedJWT}'`);
+      console.log('==================================================\n');
+
       const response = await this.executeWithRetry(() =>
         this.httpClient.post('/api/v5/txstatus', signedJWT)
       );
+
+      console.log('\n========== API Response (Order Status) ==========');
+      console.log('Status:', response.status, response.statusText);
+      console.log('Headers:', JSON.stringify(response.headers, null, 2));
+      console.log('Body:', typeof response.data === 'object' ? JSON.stringify(response.data, null, 2) : response.data);
+      console.log('=================================================\n');
 
       // Verify and decode the response
       let statusResponse;
