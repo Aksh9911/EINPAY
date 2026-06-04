@@ -1,5 +1,6 @@
 const EinpayService = require('../services/EinpayService');
 const RechargeRepository = require('../repositories/RechargeRepository');
+const CallbackController = require('./CallbackController');
 const logger = require('../utils/logger');
 
 /**
@@ -64,13 +65,24 @@ class DepositController {
       // Trigger automatic order status check with retry (5 times, 30 sec delay)
       // This runs asynchronously - don't block the response
       if (depositResult.transaction_id) {
-        const CallbackController = require('./CallbackController');
-        CallbackController.startOrderStatusCheck(
-          depositData.client_transaction_id,
-          depositResult.transaction_id,
-          depositData,
-          correlationId
-        );
+        // Use setImmediate to avoid blocking and handle any errors
+        setImmediate(async () => {
+          try {
+            await CallbackController.startOrderStatusCheck(
+              depositData.client_transaction_id,
+              depositResult.transaction_id,
+              depositData,
+              correlationId
+            );
+          } catch (error) {
+            logger.error('Order status check failed', {
+              operation: 'order_status_check_error',
+              correlation_id: correlationId,
+              client_transaction_id: depositData.client_transaction_id,
+              error: error.message
+            });
+          }
+        });
       }
 
       logger.logDeposit({
