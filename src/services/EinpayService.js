@@ -212,11 +212,13 @@ class EinpayService {
         gatewayResponse = response.data;
       }
 
-      // Extract payment details
+      // Extract payment details - handle nested payload structure
+      const responsePayload = gatewayResponse.payload || gatewayResponse;
+      
       const result = {
         success: true,
-        payment_link: gatewayResponse.payment_link || gatewayResponse.redirect_url || null,
-        transaction_id: gatewayResponse.transaction_id || gatewayResponse.txn_id || null,
+        payment_link: responsePayload.payment_link || responsePayload.redirect_url || null,
+        transaction_id: responsePayload.transaction_id || responsePayload.txn_id || null,
         gateway_response: gatewayResponse
       };
 
