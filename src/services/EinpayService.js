@@ -241,17 +241,21 @@ class EinpayService {
   /**
    * Check transaction status
    * @param {string[]} orders - Array of transaction IDs to check
+   * @param {string} paymentMode - Payment mode (P2P or NATIVE)
    * @returns {Promise<Object>} - Transaction status response
    */
-  async checkTransactionStatus(orders) {
+  async checkTransactionStatus(orders, paymentMode) {
     try {
+      // Get client configuration based on payment_mode
+      const clientConfig = this.getClientConfig(paymentMode);
+
       // Build status request payload
       const payload = {
         salt: SaltGenerator.generate(),
         timestamp: TimestampHelper.getUnixTimestampSeconds().toString(),
-        client_id: this.clientId,
-        country_id: this.countryId,
-        currency_id: this.currencyId,
+        client_id: clientConfig.clientId,
+        country_id: clientConfig.countryId,
+        currency_id: clientConfig.currencyId,
         orders: orders
       };
 
@@ -261,7 +265,9 @@ class EinpayService {
       logger.info('Checking transaction status', {
         operation: 'status_check',
         order_count: orders.length,
-        orders: orders
+        orders: orders,
+        payment_mode: paymentMode || 'default',
+        client_id: clientConfig.clientId
       });
 
       // Make API request with retry

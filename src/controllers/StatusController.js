@@ -12,18 +12,19 @@ class StatusController {
    */
   async checkStatus(req, res) {
     const correlationId = req.correlationId;
-    const { orders } = req.body;
+    const { orders, payment_mode } = req.body;
 
     try {
       logger.info('Transaction status check requested', {
         operation: 'check_status',
         correlation_id: correlationId,
         order_count: orders.length,
-        orders: orders
+        orders: orders,
+        payment_mode: payment_mode || 'default'
       });
 
       // Check status with EINPAY
-      const statusResponse = await EinpayService.checkTransactionStatus(orders);
+      const statusResponse = await EinpayService.checkTransactionStatus(orders, payment_mode);
 
       // Update local records based on status response
       if (statusResponse.orders && Array.isArray(statusResponse.orders)) {

@@ -212,6 +212,15 @@ class TransactionValidator {
       }
     }
 
+    // Validate payment_mode (optional - must be P2P or NATIVE if provided)
+    if (data.payment_mode !== undefined && data.payment_mode !== null && data.payment_mode !== '') {
+      const validModes = ['P2P', 'NATIVE'];
+      const modeUpper = data.payment_mode.toUpperCase();
+      if (!validModes.includes(modeUpper)) {
+        errors.push('payment_mode must be either "P2P" or "NATIVE"');
+      }
+    }
+
     return {
       isValid: errors.length === 0,
       errors
