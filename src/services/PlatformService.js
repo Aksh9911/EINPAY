@@ -185,11 +185,11 @@ class PlatformService {
 
   /**
    * Update wallet balance in platform
-   * POST /api/user/wallet/balance
+   * PUT /api/user/wallet/balance
    */
   async updateWalletBalance(payload, correlationId) {
     try {
-      const response = await this.client.post('/api/user/wallet/balance', payload, {
+      const response = await this.client.put('/api/user/wallet/balance', payload, {
         headers: {
           'X-Correlation-ID': correlationId
         }
