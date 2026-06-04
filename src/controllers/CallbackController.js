@@ -3,6 +3,10 @@ const RechargeRepository = require('../repositories/RechargeRepository');
 const PlatformService = require('../services/PlatformService');
 const logger = require('../utils/logger');
 
+// Maximum retries for order status check
+const MAX_STATUS_RETRIES = 3;
+const STATUS_RETRY_DELAY_MS = 2000;
+
 /**
  * CallbackController - Handles EINPAY webhook callbacks
  */
@@ -109,6 +113,29 @@ class CallbackController {
       // Process based on status
       const normalizedStatus = status?.toUpperCase();
       
+      // Log callback received to file for audit trail
+      logger.info('EINPAY Callback Received', {
+        type: 'callback_request',
+        correlation_id: correlationId,
+        client_transaction_id: client_transaction_id,
+        gateway_transaction_id: transaction_id,
+        status: normalizedStatus,
+        amount: amount,
+        requested_method: requested_method,
+        callback_payload: callbackPayload
+      });
+      
+      // For PENDING status, trigger automatic order status check with retry
+      if (normalizedStatus === 'PENDING') {
+        // Start async order status check - don't block callback response
+        this.processOrderStatusWithRetry(
+          client_transaction_id,
+          transaction_id,
+          callbackPayload,
+          correlationId
+        );
+      }
+      
       switch (normalizedStatus) {
         case 'APPROVED':
         case 'SUCCESS':
@@ -134,6 +161,7 @@ class CallbackController {
 
         case 'PENDING':
         default:
+          // For pending, just update status - platform APIs will be called after order status check
           await this.handlePendingCallback(
             client_transaction_id,
             transaction_id,
@@ -295,6 +323,279 @@ class CallbackController {
         callback_payload: payload
       }
     );
+  }
+
+  /**
+   * Process order status check with retry logic
+   * Automatically checks order status up to 3 times until APPROVED
+   */
+  async processOrderStatusWithRetry(clientTransactionId, gatewayTransactionId, callbackPayload, correlationId) {
+    const statusCheckCorrelationId = `${correlationId}-status-check`;
+    
+    console.log(`\n========== Starting Order Status Check for ${clientTransactionId} ==========`);
+    console.log(`Gateway Transaction ID: ${gatewayTransactionId}`);
+    console.log(`Max Retries: ${MAX_STATUS_RETRIES}`);
+    console.log(`============================================================\n`);
+    
+    logger.info('Starting automatic order status check', {
+      type: 'order_status_check_start',
+      correlation_id: statusCheckCorrelationId,
+      client_transaction_id: clientTransactionId,
+      gateway_transaction_id: gatewayTransactionId,
+      max_retries: MAX_STATUS_RETRIES
+    });
+
+    for (let attempt = 1; attempt <= MAX_STATUS_RETRIES; attempt++) {
+      try {
+        console.log(`\n----- Order Status Check Attempt ${attempt}/${MAX_STATUS_RETRIES} -----`);
+        
+        // Get payment_mode from database using client_transaction_id
+        const rechargeRecord = await RechargeRepository.findRechargeByClientTransactionId(clientTransactionId);
+        
+        if (!rechargeRecord.success || !rechargeRecord.data) {
+          console.error(`Recharge record not found for ${clientTransactionId}`);
+          logger.error('Order status check failed - record not found', {
+            type: 'order_status_check_error',
+            correlation_id: statusCheckCorrelationId,
+            client_transaction_id: clientTransactionId,
+            attempt
+          });
+          break;
+        }
+        
+        // Extract payment_mode from DB (EINPAY(P2P) or EINPAY(NATIVE) -> P2P or NATIVE)
+        const dbPaymentMode = rechargeRecord.data.payment_mode;
+        let paymentMode = null;
+        if (dbPaymentMode && dbPaymentMode.includes('P2P')) {
+          paymentMode = 'P2P';
+        } else if (dbPaymentMode && dbPaymentMode.includes('NATIVE')) {
+          paymentMode = 'NATIVE';
+        }
+        
+        console.log(`Payment Mode from DB: ${dbPaymentMode} -> Using: ${paymentMode || 'default'}`);
+        
+        // Call order status API
+        const orders = [gatewayTransactionId];
+        
+        console.log(`\n----- Calling Order Status API -----`);
+        console.log(`Orders: ${JSON.stringify(orders)}`);
+        console.log(`Payment Mode: ${paymentMode || 'default'}`);
+        
+        const statusResponse = await EinpayService.checkTransactionStatus(orders, paymentMode);
+        
+        // Log order status API response to file
+        logger.info('Order Status API Response Received', {
+          type: 'order_status_api_response',
+          correlation_id: statusCheckCorrelationId,
+          client_transaction_id: clientTransactionId,
+          gateway_transaction_id: gatewayTransactionId,
+          attempt,
+          status_response: statusResponse
+        });
+        
+        console.log(`\n----- Order Status API Response -----`);
+        console.log(`Response: ${JSON.stringify(statusResponse, null, 2)}`);
+        console.log(`-------------------------------------\n`);
+        
+        // Check if status is APPROVED
+        const orderStatus = this.extractOrderStatus(statusResponse);
+        
+        console.log(`Extracted Order Status: ${orderStatus}`);
+        
+        if (orderStatus === 'APPROVED') {
+          console.log(`\n✓ Order APPROVED on attempt ${attempt}! Processing platform APIs...\n`);
+          
+          logger.info('Order status APPROVED - processing platform APIs', {
+            type: 'order_status_approved',
+            correlation_id: statusCheckCorrelationId,
+            client_transaction_id: clientTransactionId,
+            gateway_transaction_id: gatewayTransactionId,
+            attempt
+          });
+          
+          // Update DB status to SUCCESS
+          await RechargeRepository.updateRechargeStatus(
+            clientTransactionId,
+            'APPROVED',
+            {
+              gateway_transaction_id: gatewayTransactionId,
+              processed_at: new Date().toISOString(),
+              correlation_id: statusCheckCorrelationId,
+              callback_payload: callbackPayload
+            }
+          );
+          
+          // Call platform APIs
+          await this.processPlatformApis(clientTransactionId, callbackPayload, statusCheckCorrelationId);
+          
+          console.log(`\n========== Order Status Check Completed Successfully ==========\n`);
+          
+          logger.info('Order status check completed - platform APIs processed', {
+            type: 'order_status_check_complete',
+            correlation_id: statusCheckCorrelationId,
+            client_transaction_id: clientTransactionId,
+            gateway_transaction_id: gatewayTransactionId,
+            final_status: 'APPROVED',
+            attempts: attempt
+          });
+          
+          return; // Success - exit retry loop
+        } else {
+          console.log(`✗ Order status is ${orderStatus}, not APPROVED`);
+          
+          logger.info('Order status not approved, will retry', {
+            type: 'order_status_retry',
+            correlation_id: statusCheckCorrelationId,
+            client_transaction_id: clientTransactionId,
+            gateway_transaction_id: gatewayTransactionId,
+            current_status: orderStatus,
+            attempt,
+            next_attempt: attempt < MAX_STATUS_RETRIES ? attempt + 1 : null
+          });
+          
+          // If not last attempt, wait before retrying
+          if (attempt < MAX_STATUS_RETRIES) {
+            console.log(`Waiting ${STATUS_RETRY_DELAY_MS}ms before retry...`);
+            await this.sleep(STATUS_RETRY_DELAY_MS);
+          }
+        }
+        
+      } catch (error) {
+        console.error(`Error on attempt ${attempt}:`, error.message);
+        
+        logger.logError(error, {
+          type: 'order_status_check_error',
+          correlation_id: statusCheckCorrelationId,
+          client_transaction_id: clientTransactionId,
+          gateway_transaction_id: gatewayTransactionId,
+          attempt
+        });
+        
+        // If not last attempt, wait before retrying
+        if (attempt < MAX_STATUS_RETRIES) {
+          console.log(`Waiting ${STATUS_RETRY_DELAY_MS}ms before retry...`);
+          await this.sleep(STATUS_RETRY_DELAY_MS);
+        }
+      }
+    }
+    
+    // All retries exhausted
+    console.log(`\n✗ Order Status Check Failed after ${MAX_STATUS_RETRIES} attempts`);
+    console.log(`Transaction remains in PENDING status`);
+    console.log(`========== Order Status Check Ended ==========\n`);
+    
+    logger.warn('Order status check max retries reached', {
+      type: 'order_status_max_retries',
+      correlation_id: statusCheckCorrelationId,
+      client_transaction_id: clientTransactionId,
+      gateway_transaction_id: gatewayTransactionId,
+      max_retries: MAX_STATUS_RETRIES
+    });
+  }
+
+  /**
+   * Extract order status from EINPAY status response
+   */
+  extractOrderStatus(statusResponse) {
+    try {
+      // Handle the structure: data.payload.transaction_status.0.status
+      if (statusResponse && statusResponse.payload && statusResponse.payload.transaction_status) {
+        const transactionStatus = statusResponse.payload.transaction_status;
+        const firstOrder = transactionStatus['0'] || Object.values(transactionStatus)[0];
+        if (firstOrder && firstOrder.status) {
+          return firstOrder.status.toUpperCase();
+        }
+      }
+      
+      // Alternative: direct data.orders array
+      if (statusResponse && statusResponse.orders && statusResponse.orders.length > 0) {
+        const firstOrder = statusResponse.orders[0];
+        if (firstOrder.status) {
+          return firstOrder.status.toUpperCase();
+        }
+      }
+      
+      return 'UNKNOWN';
+    } catch (error) {
+      return 'UNKNOWN';
+    }
+  }
+
+  /**
+   * Sleep/delay helper
+   */
+  sleep(ms) {
+    return new Promise(resolve => setTimeout(resolve, ms));
+  }
+
+  /**
+   * Process platform APIs after order is approved
+   */
+  async processPlatformApis(clientTransactionId, callbackPayload, correlationId) {
+    try {
+      // Extract userId and amount from callback payload
+      const callbackData = callbackPayload.payload || callbackPayload;
+      const clientUserId = callbackData.client_user_id;
+      const amount = parseFloat(callbackData.amount);
+      
+      // Extract numeric userId
+      let userId;
+      if (clientUserId) {
+        const match = clientUserId.toString().match(/(\d+)/);
+        userId = match ? parseInt(match[1], 10) : null;
+      }
+      
+      if (!userId || isNaN(amount)) {
+        console.error('Cannot process platform APIs - missing userId or amount');
+        logger.error('Cannot process platform APIs - missing data', {
+          type: 'platform_api_missing_data',
+          correlation_id: correlationId,
+          client_transaction_id: clientTransactionId,
+          client_user_id: clientUserId,
+          amount: callbackData.amount
+        });
+        return;
+      }
+      
+      console.log(`\n----- Calling Platform APIs -----`);
+      console.log(`User ID: ${userId}`);
+      console.log(`Amount: ${amount}`);
+      console.log(`Order ID: ${clientTransactionId}`);
+      
+      // Call both platform APIs atomically
+      const platformResult = await PlatformService.processSuccessfulDeposit({
+        userId,
+        amount,
+        orderId: clientTransactionId
+      }, correlationId);
+      
+      if (platformResult.success) {
+        console.log(`\n✓ Platform APIs processed successfully`);
+        console.log(`Deposit API: Success`);
+        console.log(`Wallet API: Success`);
+      } else {
+        console.error(`\n✗ Platform APIs failed`);
+      }
+      
+      logger.info('Platform deposit processed', {
+        type: 'platform_deposit_complete',
+        correlation_id: correlationId,
+        client_transaction_id: clientTransactionId,
+        userId,
+        amount,
+        success: platformResult.success,
+        result: platformResult
+      });
+      
+    } catch (error) {
+      console.error('Platform API processing error:', error.message);
+      logger.logError(error, {
+        type: 'platform_deposit_failed',
+        correlation_id: correlationId,
+        client_transaction_id: clientTransactionId,
+        message: 'Platform APIs failed after order approval'
+      });
+    }
   }
 
   /**

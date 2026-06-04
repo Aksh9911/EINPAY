@@ -71,8 +71,8 @@ class RechargeRepository {
         INSERT INTO ${tableName} (
           recharge_id, order_id, userId, user_mobile, 
           recharge_amount, recharge_type, payment_mode, 
-          date, time, recharge_status, isDepAdded
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          date, time, recharge_status, isDepAdded, gateway_transaction_id
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `;
       
       // Format payment_mode for database: EINPAY(P2P), EINPAY(NATIVE), or EINPAY
@@ -99,7 +99,8 @@ class RechargeRepository {
         date,                           // date
         time,                           // time
         'PENDING',                      // recharge_status
-        0                               // isDepAdded
+        0,                              // isDepAdded
+        data.gateway_transaction_id || null  // gateway_transaction_id (EINPAY's order ID)
       ];
       
       const result = await db.query(sql, params);
@@ -127,7 +128,7 @@ class RechargeRepository {
           time: time,
           recharge_status: 'PENDING',
           isDepAdded: 0,
-          gateway_transaction_id: data.gateway_transaction_id
+          gateway_transaction_id: data.gateway_transaction_id || null
         },
         message: 'Recharge record created successfully'
       };
@@ -177,8 +178,18 @@ class RechargeRepository {
           rechargeStatus = 'PENDING';
       }
       
-      const sql = `UPDATE ${tableName} SET recharge_status = ?, isDepAdded = ? WHERE order_id = ?`;
-      const params = [rechargeStatus, isDepAdded, clientTransactionId];
+      // Build update SQL - include gateway_transaction_id if provided
+      let sql = `UPDATE ${tableName} SET recharge_status = ?, isDepAdded = ?`;
+      let params = [rechargeStatus, isDepAdded];
+      
+      // Update gateway_transaction_id if provided in additionalData
+      if (additionalData.gateway_transaction_id) {
+        sql += `, gateway_transaction_id = ?`;
+        params.push(additionalData.gateway_transaction_id);
+      }
+      
+      sql += ` WHERE order_id = ?`;
+      params.push(clientTransactionId);
       
       const result = await db.query(sql, params);
       
@@ -216,23 +227,52 @@ class RechargeRepository {
   }
 
   /**
-   * Find recharge by EINPAY transaction ID
-   * @param {string} transactionId - EINPAY transaction ID
+   * Find recharge by EINPAY gateway transaction ID
+   * @param {string} gatewayTransactionId - EINPAY transaction ID (gateway_transaction_id)
    * @returns {Promise<Object|null>} - Recharge record or null
    */
-  async findRechargeByTransactionId(transactionId) {
-    // Note: We don't store gateway_transaction_id in the table currently
-    // This would need a schema update or we search by client_transaction_id
-    logger.info('Finding recharge by gateway transaction ID', {
-      operation: 'find_by_gateway_txn_id',
-      gateway_transaction_id: transactionId
-    });
+  async findRechargeByGatewayTransactionId(gatewayTransactionId) {
+    const tableName = db.getTableName();
     
-    return {
-      success: false,
-      data: null,
-      message: 'Search by gateway transaction ID not implemented - use client_transaction_id'
-    };
+    try {
+      const sql = `SELECT * FROM ${tableName} WHERE gateway_transaction_id = ? LIMIT 1`;
+      const params = [gatewayTransactionId];
+      
+      const results = await db.query(sql, params);
+      
+      if (results && results.length > 0) {
+        logger.info('Recharge found by gateway transaction ID', {
+          operation: 'find_by_gateway_txn_id',
+          gateway_transaction_id: gatewayTransactionId,
+          client_transaction_id: results[0].order_id,
+          status: results[0].recharge_status
+        });
+        
+        return {
+          success: true,
+          data: results[0],
+          message: 'Recharge found'
+        };
+      }
+      
+      return {
+        success: false,
+        data: null,
+        message: 'Recharge not found by gateway transaction ID'
+      };
+    } catch (error) {
+      logger.error('Failed to find recharge by gateway transaction ID', {
+        operation: 'find_by_gateway_txn_id_failed',
+        gateway_transaction_id: gatewayTransactionId,
+        error: error.message
+      });
+      
+      return {
+        success: false,
+        data: null,
+        message: `Failed to find recharge: ${error.message}`
+      };
+    }
   }
 
   /**
