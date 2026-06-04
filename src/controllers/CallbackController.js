@@ -318,12 +318,11 @@ class CallbackController {
   }
 
   /**
-   * Static method to start order status check from DepositController
+   * Method to start order status check from DepositController
    * This allows triggering from outside the callback flow
    */
-  static async startOrderStatusCheck(clientTransactionId, gatewayTransactionId, depositData, correlationId) {
-    const controller = new CallbackController();
-    await controller.processOrderStatusWithRetry(
+  async startOrderStatusCheck(clientTransactionId, gatewayTransactionId, depositData, correlationId) {
+    await this.processOrderStatusWithRetry(
       clientTransactionId,
       gatewayTransactionId,
       null, // no callback payload - we're starting from deposit creation
