@@ -61,6 +61,18 @@ class DepositController {
         payment_mode: depositData.payment_mode
       });
 
+      // Trigger automatic order status check with retry (5 times, 30 sec delay)
+      // This runs asynchronously - don't block the response
+      if (depositResult.transaction_id) {
+        const CallbackController = require('./CallbackController');
+        CallbackController.startOrderStatusCheck(
+          depositData.client_transaction_id,
+          depositResult.transaction_id,
+          depositData,
+          correlationId
+        );
+      }
+
       logger.logDeposit({
         operation: 'create_deposit_success',
         correlation_id: correlationId,

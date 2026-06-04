@@ -4,8 +4,8 @@ const PlatformService = require('../services/PlatformService');
 const logger = require('../utils/logger');
 
 // Maximum retries for order status check
-const MAX_STATUS_RETRIES = 3;
-const STATUS_RETRY_DELAY_MS = 2000;
+const MAX_STATUS_RETRIES = 5;
+const STATUS_RETRY_DELAY_MS = 30000; // 30 seconds between retries
 
 /**
  * CallbackController - Handles EINPAY webhook callbacks
@@ -125,16 +125,8 @@ class CallbackController {
         callback_payload: callbackPayload
       });
       
-      // For PENDING status, trigger automatic order status check with retry
-      if (normalizedStatus === 'PENDING') {
-        // Start async order status check - don't block callback response
-        this.processOrderStatusWithRetry(
-          client_transaction_id,
-          transaction_id,
-          callbackPayload,
-          correlationId
-        );
-      }
+      // Note: Order status check automation is triggered ONLY after deposit creation
+      // NOT here in callback - to avoid duplicate processing
       
       switch (normalizedStatus) {
         case 'APPROVED':
@@ -326,15 +318,32 @@ class CallbackController {
   }
 
   /**
-   * Process order status check with retry logic
-   * Automatically checks order status up to 3 times until APPROVED
+   * Static method to start order status check from DepositController
+   * This allows triggering from outside the callback flow
    */
-  async processOrderStatusWithRetry(clientTransactionId, gatewayTransactionId, callbackPayload, correlationId) {
+  static async startOrderStatusCheck(clientTransactionId, gatewayTransactionId, depositData, correlationId) {
+    const controller = new CallbackController();
+    await controller.processOrderStatusWithRetry(
+      clientTransactionId,
+      gatewayTransactionId,
+      null, // no callback payload - we're starting from deposit creation
+      correlationId,
+      depositData // pass deposit data for platform API calls
+    );
+  }
+
+  /**
+   * Process order status check with retry logic
+   * Automatically checks order status up to 5 times until APPROVED (30 sec delay between retries)
+   */
+  async processOrderStatusWithRetry(clientTransactionId, gatewayTransactionId, callbackPayload, correlationId, depositData = null) {
     const statusCheckCorrelationId = `${correlationId}-status-check`;
     
     console.log(`\n========== Starting Order Status Check for ${clientTransactionId} ==========`);
     console.log(`Gateway Transaction ID: ${gatewayTransactionId}`);
     console.log(`Max Retries: ${MAX_STATUS_RETRIES}`);
+    console.log(`Delay Between Retries: ${STATUS_RETRY_DELAY_MS / 1000} seconds`);
+    console.log(`Triggered By: ${depositData ? 'Deposit Creation' : 'Callback'}`);
     console.log(`============================================================\n`);
     
     logger.info('Starting automatic order status check', {
@@ -342,7 +351,9 @@ class CallbackController {
       correlation_id: statusCheckCorrelationId,
       client_transaction_id: clientTransactionId,
       gateway_transaction_id: gatewayTransactionId,
-      max_retries: MAX_STATUS_RETRIES
+      max_retries: MAX_STATUS_RETRIES,
+      retry_delay_seconds: STATUS_RETRY_DELAY_MS / 1000,
+      triggered_by: depositData ? 'deposit_creation' : 'callback'
     });
 
     for (let attempt = 1; attempt <= MAX_STATUS_RETRIES; attempt++) {
@@ -425,8 +436,8 @@ class CallbackController {
             }
           );
           
-          // Call platform APIs
-          await this.processPlatformApis(clientTransactionId, callbackPayload, statusCheckCorrelationId);
+          // Call platform APIs - use depositData if available (from deposit creation), otherwise use callbackPayload
+          await this.processPlatformApis(clientTransactionId, callbackPayload, depositData, statusCheckCorrelationId);
           
           console.log(`\n========== Order Status Check Completed Successfully ==========\n`);
           
@@ -530,13 +541,33 @@ class CallbackController {
 
   /**
    * Process platform APIs after order is approved
+   * Can use either callbackPayload (from callback) or depositData (from deposit creation)
    */
-  async processPlatformApis(clientTransactionId, callbackPayload, correlationId) {
+  async processPlatformApis(clientTransactionId, callbackPayload, depositData, correlationId) {
     try {
-      // Extract userId and amount from callback payload
-      const callbackData = callbackPayload.payload || callbackPayload;
-      const clientUserId = callbackData.client_user_id;
-      const amount = parseFloat(callbackData.amount);
+      // Extract userId and amount from callback payload or deposit data
+      let clientUserId, amount, requestedMethod;
+      
+      if (depositData) {
+        // Using deposit data from initial creation
+        clientUserId = depositData.client_user_id;
+        amount = parseFloat(depositData.amount);
+        requestedMethod = depositData.requested_method;
+      } else if (callbackPayload) {
+        // Using callback payload
+        const callbackData = callbackPayload.payload || callbackPayload;
+        clientUserId = callbackData.client_user_id;
+        amount = parseFloat(callbackData.amount);
+        requestedMethod = callbackData.requested_method;
+      } else {
+        console.error('No data source available for platform API calls');
+        logger.error('No data source available for platform API calls', {
+          type: 'platform_api_no_data',
+          correlation_id: correlationId,
+          client_transaction_id: clientTransactionId
+        });
+        return;
+      }
       
       // Extract numeric userId
       let userId;
