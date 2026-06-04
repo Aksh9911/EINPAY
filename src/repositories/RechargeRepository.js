@@ -188,7 +188,12 @@ class RechargeRepository {
         params.push(additionalData.gateway_transaction_id);
       }
       
-      sql += ` WHERE order_id = ?`;
+      // Never downgrade a SUCCESS/FAILED record back to PENDING
+      if (rechargeStatus === 'PENDING') {
+        sql += ` WHERE order_id = ? AND recharge_status NOT IN ('SUCCESS', 'FAILED')`;
+      } else {
+        sql += ` WHERE order_id = ?`;
+      }
       params.push(clientTransactionId);
       
       const result = await db.query(sql, params);

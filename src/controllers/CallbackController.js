@@ -55,12 +55,16 @@ class CallbackController {
       const {
         transaction_id,
         client_transaction_id,
-        status,
+        status: rawStatus,
+        transaction_status: rawTransactionStatus,
         amount,
         requested_method,
         client_user_id,
         ...additionalData
       } = callbackPayload.payload || callbackPayload;
+
+      // EINPAY callback uses 'transaction_status' field; fall back to 'status' if present
+      const status = rawStatus || rawTransactionStatus;
 
       logger.logCallback({
         operation: 'callback_decoded',
