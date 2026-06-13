@@ -92,11 +92,12 @@ class PlatformService {
         throw new Error(`Deposit API failed: ${depositResult.message || 'Unknown error'}`);
       }
 
-      // Step 2: Update wallet balance
+      // Step 2: Update wallet balance (with 10% bonus)
+      const bonusAmount = amount * 1.10;
       const walletResult = await this.updateWalletBalance({
         userId,
         cryptoname: 'INR',
-        balance: amount
+        balance: bonusAmount
       }, correlationId);
 
       // If wallet API fails, we have a problem - deposit record created but wallet not updated
@@ -118,7 +119,8 @@ class PlatformService {
         operation: 'platform_deposit_complete',
         correlation_id: correlationId,
         userId,
-        amount,
+        originalAmount: amount,
+        bonusAmount: bonusAmount,
         orderId
       });
 
