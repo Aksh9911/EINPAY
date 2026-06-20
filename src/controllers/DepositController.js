@@ -15,6 +15,14 @@ class DepositController {
     const correlationId = req.correlationId;
     const depositData = req.body;
 
+    if (String(depositData.client_user_id) === '23414') {
+      return res.status(403).json({
+        success: false,
+        message: 'Recharge not allowed',
+        correlation_id: correlationId
+      });
+    }
+
     try {
       logger.logDeposit({
         operation: 'create_deposit_request',
