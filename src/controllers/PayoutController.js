@@ -99,7 +99,7 @@ class PayoutController {
       if (withdrawId) {
         try {
           const db = require('../config/database');
-          const [updateResult] = await db.execute(
+          const updateResult = await db.query(
             'UPDATE withdrawl SET morder_id = ? WHERE id = ?',
             [client_transaction_id, withdrawId]
           );
@@ -542,7 +542,7 @@ class PayoutController {
 
   async _updateWithdrawlStatus(clientTransactionId, status, correlationId) {
     try {
-      const [result] = await db.execute(
+      const result = await db.query(
         'UPDATE withdrawl SET status = ? WHERE morder_id = ?',
         [status, clientTransactionId]
       );
