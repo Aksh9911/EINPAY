@@ -11,8 +11,6 @@ const router = express.Router();
  */
 router.post(
   '/create',
-  validation.sanitizeBody,
-  validation.validatePayoutCreateRequest,
   asyncHandler(PayoutController.createPayout.bind(PayoutController))
 );
 

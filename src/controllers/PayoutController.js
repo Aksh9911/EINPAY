@@ -1,6 +1,7 @@
 const EinpayService = require('../services/EinpayService');
 const PayoutRepository = require('../repositories/PayoutRepository');
 const logger = require('../utils/logger');
+const db = require('../config/database');
 
 /**
  * PayoutController - Handles EINPAY H2H Payout (Withdrawal) operations
@@ -14,77 +15,150 @@ class PayoutController {
    */
   async createPayout(req, res) {
     const correlationId = req.correlationId;
-    const payoutData = req.body;
+    const { amount, bank_name, bank_account, ifsc, withdrawId, client_user_id, client_user_ipaddr } = req.body;
+
+    // Basic validation
+    if (!amount || !bank_account || !ifsc || !client_user_id || !client_user_ipaddr) {
+      return res.status(400).json({
+        success: false,
+        message: 'Missing required fields: amount, bank_account, ifsc, client_user_id, client_user_ipaddr',
+        correlation_id: correlationId
+      });
+    }
+
+    // Generate client_transaction_id at backend
+    const now = new Date();
+    const pad = (n, l = 2) => String(n).padStart(l, '0');
+    const datePart = `${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}`;
+    const timestamp = now.getTime();
+    const rand4 = String(Math.floor(1000 + Math.random() * 9000));
+    const client_transaction_id = `EINPAYWD${datePart}${timestamp}${rand4}`;
+
+    const requested_method = 'IMPS';
+
+    const payoutData = {
+      amount,
+      requested_method,
+      client_user_id,
+      client_transaction_id,
+      client_user_ipaddr
+    };
 
     try {
       logger.logPayout({
         operation: 'create_payout_request',
         correlation_id: correlationId,
-        client_transaction_id: payoutData.client_transaction_id,
-        client_user_id: payoutData.client_user_id,
-        amount: payoutData.amount,
-        method: payoutData.requested_method
+        client_transaction_id,
+        withdraw_id: withdrawId,
+        amount
       });
 
-      // Idempotency: prevent duplicate payout requests
-      const existing = await PayoutRepository.findByClientTransactionId(
-        payoutData.client_transaction_id
-      );
+      // Step 1: Call EINPAY getform API — get request_id + required_information field IDs
+      const payoutResult = await EinpayService.createPayoutRequest(payoutData);
+      const { request_id, required_information } = payoutResult;
 
-      if (existing.success && existing.data) {
-        logger.warn('Duplicate payout transaction detected', {
-          operation: 'duplicate_payout_request',
-          correlation_id: correlationId,
-          client_transaction_id: payoutData.client_transaction_id
-        });
+      logger.logPayout({
+        operation: 'getform_success',
+        correlation_id: correlationId,
+        request_id,
+        fields: (required_information || []).map(f => ({ id: f.id, label: f.label }))
+      });
 
-        return res.status(409).json({
-          success: false,
-          message: 'Duplicate payout transaction ID',
-          correlation_id: correlationId,
-          existing_transaction: {
-            status: existing.data.status,
-            created_at: existing.data.created_at
-          }
-        });
+      // Step 2: Map bank details to EINPAY field IDs by matching label keywords
+      const submitted_information = {};
+      for (const field of (required_information || [])) {
+        const label = (field.label || '').toLowerCase();
+        if (label.includes('account') && label.includes('number') || label.includes('account no') || label.includes('bank account')) {
+          submitted_information[field.id] = String(bank_account);
+        } else if (label.includes('ifsc')) {
+          submitted_information[field.id] = String(ifsc).toUpperCase();
+        } else if (label.includes('name')) {
+          submitted_information[field.id] = String(bank_name || '');
+        }
       }
 
-      // Call EINPAY getform API
-      const payoutResult = await EinpayService.createPayoutRequest(payoutData);
+      logger.logPayout({
+        operation: 'submitting_payout',
+        correlation_id: correlationId,
+        request_id,
+        submitted_fields: Object.keys(submitted_information)
+      });
 
-      // Persist payout record (stub - ready for MySQL integration)
+      // Step 2: Submit bank details to EINPAY
+      const submitResult = await EinpayService.submitPayout({
+        request_id,
+        submitted_information
+      });
+
+      // Update withdrawl table — store client_transaction_id against withdrawId
+      if (withdrawId) {
+        try {
+          const db = require('../config/database');
+          const [updateResult] = await db.execute(
+            'UPDATE withdrawl SET morder_id = ? WHERE id = ?',
+            [client_transaction_id, withdrawId]
+          );
+          if (updateResult.affectedRows === 0) {
+            logger.warn('withdrawl DB update matched 0 rows', {
+              operation: 'withdrawl_morder_update',
+              correlation_id: correlationId,
+              withdraw_id: withdrawId,
+              client_transaction_id
+            });
+          } else {
+            logger.logPayout({
+              operation: 'withdrawl_morder_updated',
+              correlation_id: correlationId,
+              withdraw_id: withdrawId,
+              client_transaction_id
+            });
+          }
+        } catch (dbErr) {
+          logger.logError(dbErr, {
+            operation: 'withdrawl_morder_update_failed',
+            correlation_id: correlationId,
+            withdraw_id: withdrawId,
+            client_transaction_id
+          });
+        }
+      }
+
+      // Persist payout record
       await PayoutRepository.createPayout({
-        client_transaction_id: payoutData.client_transaction_id,
-        client_user_id: payoutData.client_user_id,
-        amount: payoutData.amount,
-        requested_method: payoutData.requested_method,
-        request_id: payoutResult.request_id,
+        client_transaction_id,
+        client_user_id,
+        amount,
+        requested_method,
+        request_id,
         valid_until: payoutResult.valid_until,
-        required_information: payoutResult.required_information,
-        status: 'PENDING'
+        required_information,
+        status: submitResult.status === 'SUCCESS' ? 'SUBMITTED' : 'PENDING'
       });
 
       logger.logPayout({
-        operation: 'create_payout_success',
+        operation: 'create_payout_complete',
         correlation_id: correlationId,
-        client_transaction_id: payoutData.client_transaction_id,
-        request_id: payoutResult.request_id
+        client_transaction_id,
+        request_id,
+        submit_status: submitResult.status,
+        transaction_id: submitResult.transaction_id
       });
 
       return res.status(200).json({
         success: true,
-        message: 'Payout request created successfully',
+        message: 'Payout submitted successfully',
         correlation_id: correlationId,
-        request_id: payoutResult.request_id,
-        valid_until: payoutResult.valid_until,
-        required_information: payoutResult.required_information
+        client_transaction_id,
+        request_id,
+        status: submitResult.status,
+        transaction_id: submitResult.transaction_id
       });
 
     } catch (error) {
       logger.logError(error, {
         operation: 'create_payout_failed',
         correlation_id: correlationId,
-        client_transaction_id: payoutData.client_transaction_id
+        client_transaction_id
       });
 
       let statusCode = 500;
@@ -313,6 +387,7 @@ class PayoutController {
             transaction_id,
             client_transaction_id
           });
+          await this._updateWithdrawlStatus(client_transaction_id, 0, correlationId);
           break;
       }
 
@@ -436,8 +511,7 @@ class PayoutController {
       correlation_id: correlationId
     });
 
-    // TODO: Notify main platform of successful withdrawal
-    // e.g. deduct from user wallet, update withdraw table, send notification
+    await this._updateWithdrawlStatus(clientTransactionId, 1, correlationId);
   }
 
   /**
@@ -458,7 +532,38 @@ class PayoutController {
       correlation_id: correlationId
     });
 
-    // TODO: Notify main platform of failed withdrawal (refund user wallet if already debited)
+    await this._updateWithdrawlStatus(clientTransactionId, 2, correlationId);
+  }
+
+  async _updateWithdrawlStatus(clientTransactionId, status, correlationId) {
+    try {
+      const [result] = await db.execute(
+        'UPDATE withdrawl SET status = ? WHERE morder_id = ?',
+        [status, clientTransactionId]
+      );
+      if (result.affectedRows === 0) {
+        logger.warn('withdrawl status update matched 0 rows', {
+          operation: 'withdrawl_status_update',
+          correlation_id: correlationId,
+          client_transaction_id: clientTransactionId,
+          status
+        });
+      } else {
+        logger.logPayout({
+          operation: 'withdrawl_status_updated',
+          correlation_id: correlationId,
+          client_transaction_id: clientTransactionId,
+          status
+        });
+      }
+    } catch (dbErr) {
+      logger.logError(dbErr, {
+        operation: 'withdrawl_status_update_failed',
+        correlation_id: correlationId,
+        client_transaction_id: clientTransactionId,
+        status
+      });
+    }
   }
 }
 

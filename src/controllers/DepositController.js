@@ -13,7 +13,7 @@ class DepositController {
    */
   async createDeposit(req, res) {
     const correlationId = req.correlationId;
-    const depositData = req.body;
+    const depositData = { ...req.body };
 
     if (String(depositData.client_user_id) === '23414') {
       return res.status(403).json({
@@ -22,6 +22,14 @@ class DepositController {
         correlation_id: correlationId
       });
     }
+
+    // Generate client_transaction_id at backend — FE value is ignored
+    const now = new Date();
+    const pad = (n, l = 2) => String(n).padStart(l, '0');
+    const datePart = `${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}`;
+    const timestamp = now.getTime();
+    const rand4 = String(Math.floor(1000 + Math.random() * 9000));
+    depositData.client_transaction_id = `EINPAY${datePart}${timestamp}${rand4}`;
 
     try {
       logger.logDeposit({
