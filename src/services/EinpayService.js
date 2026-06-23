@@ -402,10 +402,13 @@ class EinpayService {
     try {
       const publicKeyContent = KeyManager.getMerchantPublicKey();
 
+      // Get client configuration based on payment_mode (P2P=416, NATIVE=417, default=415)
+      const clientConfig = this.getClientConfig(payoutData.payment_mode);
+
       const payload = {
         salt: SaltGenerator.generate(),
         timestamp: TimestampHelper.getUnixTimestampSeconds().toString(),
-        client_id: this.clientId,
+        client_id: clientConfig.clientId,
         transaction_type: 2, // 2 = Payout
         requested_method: payoutData.requested_method,
         country_id: this.countryId,

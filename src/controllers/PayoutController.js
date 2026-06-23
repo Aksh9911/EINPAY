@@ -41,7 +41,8 @@ class PayoutController {
       requested_method,
       client_user_id,
       client_transaction_id,
-      client_user_ipaddr
+      client_user_ipaddr,
+      payment_mode: 'P2P'
     };
 
     try {
