@@ -57,17 +57,22 @@ class PayoutController {
       const payoutResult = await EinpayService.createPayoutRequest(payoutData);
       const { request_id, required_information } = payoutResult;
 
+      // EINPAY returns required_information as an object {"0":{...},"1":{...}} — convert to array
+      const fieldsArray = Array.isArray(required_information)
+        ? required_information
+        : Object.values(required_information || {});
+
       logger.logPayout({
         operation: 'getform_success',
         correlation_id: correlationId,
         request_id,
-        fields: (required_information || []).map(f => ({ id: f.id, label: f.label }))
+        fields: fieldsArray.map(f => ({ id: f.id, name: f.name }))
       });
 
-      // Step 2: Map bank details to EINPAY field IDs by matching label keywords
+      // Step 2: Map bank details to EINPAY field IDs by matching name keywords
       const submitted_information = {};
-      for (const field of (required_information || [])) {
-        const label = (field.label || '').toLowerCase();
+      for (const field of fieldsArray) {
+        const label = (field.name || '').toLowerCase();
         if (label.includes('account') && label.includes('number') || label.includes('account no') || label.includes('bank account')) {
           submitted_information[field.id] = String(bank_account);
         } else if (label.includes('ifsc')) {
