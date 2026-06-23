@@ -231,6 +231,20 @@ class CallbackController {
         userId = match ? parseInt(match[1], 10) : null;
       }
 
+      // Fallback: if client_user_id not in callback, look up userId from DB
+      if (!userId) {
+        const dbRecord = await RechargeRepository.findRechargeByClientTransactionId(clientTransactionId);
+        if (dbRecord.success && dbRecord.data) {
+          userId = dbRecord.data.userId;
+          logger.info('Resolved userId from DB fallback', {
+            operation: 'platform_api_userid_fallback',
+            correlation_id: correlationId,
+            client_transaction_id: clientTransactionId,
+            userId
+          });
+        }
+      }
+
       if (!userId || isNaN(amount)) {
         logger.error('Cannot process platform APIs - missing userId or amount', {
           operation: 'platform_api_missing_data',
