@@ -9,6 +9,13 @@ const {
   validation, 
   asyncHandler 
 } = require('../middlewares');
+const { 
+  createRechargeRateLimiter,
+  createOrderRateLimiter
+} = require('../middlewares/rateLimiter');
+const { 
+  validateUserStatus 
+} = require('../middlewares/userStatusValidator');
 
 const router = express.Router();
 
@@ -19,6 +26,8 @@ const router = express.Router();
  */
 router.post(
   '/deposit',
+  createRechargeRateLimiter(),
+  validateUserStatus,
   validation.sanitizeBody,
   validation.validateDepositRequest,
   asyncHandler(DepositController.createDeposit.bind(DepositController))
