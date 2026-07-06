@@ -87,7 +87,9 @@ class PayoutController {
         operation: 'submitting_payout',
         correlation_id: correlationId,
         request_id,
-        submitted_fields: Object.keys(submitted_information)
+        einpay_required_fields: fieldsArray.map(f => ({ id: f.id, name: f.name })),
+        mapped_submitted_information: submitted_information,
+        submitted_field_count: Object.keys(submitted_information).length
       });
 
       // Step 2: Submit bank details to EINPAY
