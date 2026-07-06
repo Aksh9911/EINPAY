@@ -58,6 +58,23 @@ class PayoutController {
       const payoutResult = await EinpayService.createPayoutRequest(payoutData);
       const { request_id, required_information } = payoutResult;
 
+      // Check if EINPAY returned NO_METHODS_AVAILABLE or empty required_information
+      if (!required_information || (Array.isArray(required_information) && required_information.length === 0) ||
+          (typeof required_information === 'object' && Object.keys(required_information).length === 0)) {
+        logger.logError(new Error('EINPAY: No payout methods available'), {
+          operation: 'create_payout_failed',
+          correlation_id: correlationId,
+          client_transaction_id,
+          reason: 'NO_METHODS_AVAILABLE'
+        });
+        return res.status(400).json({
+          success: false,
+          error: 'EINPAY: No payout methods available for this amount/country/currency combination',
+          correlation_id,
+          client_transaction_id
+        });
+      }
+
       // EINPAY returns required_information as an object {"0":{...},"1":{...}} — convert to array
       const fieldsArray = Array.isArray(required_information)
         ? required_information
