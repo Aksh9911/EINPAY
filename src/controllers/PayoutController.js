@@ -14,7 +14,7 @@ class PayoutController {
    * Body: { amount, requested_method, client_user_id, client_transaction_id, client_user_ipaddr }
    */
   async createPayout(req, res) {
-    const correlationId = req.correlationId;
+    const correlationId = req.correlationId || req.headers['x-correlation-id'] || req.headers['x-request-id'] || 'unknown';
     const { amount, bank_name, bank_account, ifsc, withdrawId, client_user_id, client_user_ipaddr } = req.body;
 
     // Basic validation

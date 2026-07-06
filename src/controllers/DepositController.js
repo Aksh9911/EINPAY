@@ -78,24 +78,7 @@ class DepositController {
         payment_mode: depositData.payment_mode
       });
 
-      // Trigger automatic order status check with retry (5 times, 30 sec delay)
-      // This runs asynchronously - don't block the response
-      if (depositResult.transaction_id) {
-        // Fire and forget - don't await, don't block response
-        CallbackController.startOrderStatusCheck(
-          depositData.client_transaction_id,
-          depositResult.transaction_id,
-          depositData,
-          correlationId
-        ).catch(error => {
-          logger.error('Order status check failed', {
-            operation: 'order_status_check_error',
-            correlation_id: correlationId,
-            client_transaction_id: depositData.client_transaction_id,
-            error: error.message
-          });
-        });
-      }
+      // Platform deposits will only be processed via callback - no status check needed
 
       logger.logDeposit({
         operation: 'create_deposit_success',

@@ -432,7 +432,19 @@ class CallbackController {
         
         if (orderStatus === 'APPROVED') {
           console.log(`\n✓ Order APPROVED on attempt ${attempt}! Processing platform APIs...\n`);
-          
+
+          // Check if deposit was already processed by callback (processed_at is set)
+          if (rechargeRecord.data && rechargeRecord.data.processed_at) {
+            console.log(`\n⚠ Deposit already processed by callback at ${rechargeRecord.data.processed_at}. Skipping platform APIs.\n`);
+            logger.info('Deposit already processed by callback - skipping platform APIs', {
+              type: 'order_status_already_processed',
+              correlation_id: statusCheckCorrelationId,
+              client_transaction_id: clientTransactionId,
+              processed_at: rechargeRecord.data.processed_at
+            });
+            return; // Exit without calling platform APIs again
+          }
+
           logger.info('Order status APPROVED - processing platform APIs', {
             type: 'order_status_approved',
             correlation_id: statusCheckCorrelationId,
@@ -440,7 +452,7 @@ class CallbackController {
             gateway_transaction_id: gatewayTransactionId,
             attempt
           });
-          
+
           // Update DB status to SUCCESS
           await RechargeRepository.updateRechargeStatus(
             clientTransactionId,
@@ -452,7 +464,7 @@ class CallbackController {
               callback_payload: callbackPayload
             }
           );
-          
+
           // Call platform APIs - use depositData if available (from deposit creation), otherwise use callbackPayload
           await this.processPlatformApis(clientTransactionId, callbackPayload, depositData, statusCheckCorrelationId);
           
