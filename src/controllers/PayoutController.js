@@ -35,6 +35,8 @@ class PayoutController {
     const client_transaction_id = `EINPAYWD${datePart}${timestamp}${rand4}`;
 
     const requested_method = 'IMPS';
+    const payment_mode =
+      req.body.payment_mode === 'NATIVE' ? 'NATIVE' : 'P2P';
 
     const payoutData = {
       amount,
@@ -42,7 +44,7 @@ class PayoutController {
       client_user_id,
       client_transaction_id,
       client_user_ipaddr,
-      payment_mode: 'P2P'
+      payment_mode,
     };
 
     try {
