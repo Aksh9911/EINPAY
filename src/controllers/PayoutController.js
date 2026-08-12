@@ -1,5 +1,6 @@
 const EinpayService = require('../services/EinpayService');
 const PayoutRepository = require('../repositories/PayoutRepository');
+const PlatformService = require('../services/PlatformService');
 const logger = require('../utils/logger');
 const db = require('../config/database');
 
@@ -559,7 +560,66 @@ class PayoutController {
       correlation_id: correlationId
     });
 
-    await this._updateWithdrawlStatus(clientTransactionId, 2, correlationId);
+    await this._refundAndMarkFailed(clientTransactionId, correlationId);
+  }
+
+  /**
+   * Refund wallet via platform API then mark withdrawl failed (idempotent).
+   * @private
+   */
+  async _refundAndMarkFailed(clientTransactionId, correlationId) {
+    try {
+      const rows = await db.query(
+        'SELECT id, userId, balance, cryptoname, status, morder_id FROM withdrawl WHERE morder_id = ? LIMIT 1',
+        [clientTransactionId]
+      );
+      const withdrawl = Array.isArray(rows) ? rows[0] : rows;
+
+      if (!withdrawl) {
+        logger.warn('withdrawl not found for refund', {
+          operation: 'payout_refund_not_found',
+          correlation_id: correlationId,
+          client_transaction_id: clientTransactionId
+        });
+        await this._updateWithdrawlStatus(clientTransactionId, 2, correlationId);
+        return;
+      }
+
+      if (Number(withdrawl.status) === 2) {
+        logger.logPayout({
+          operation: 'payout_refund_skipped_already_failed',
+          correlation_id: correlationId,
+          client_transaction_id: clientTransactionId,
+          withdraw_id: withdrawl.id
+        });
+        return;
+      }
+
+      await PlatformService.refundFailedPayout({
+        userId: withdrawl.userId,
+        amount: withdrawl.balance,
+        cryptoname: withdrawl.cryptoname || 'INR',
+        withdrawId: withdrawl.id,
+        morderId: clientTransactionId
+      }, correlationId);
+
+      await this._updateWithdrawlStatus(clientTransactionId, 2, correlationId);
+
+      logger.logPayout({
+        operation: 'payout_refund_completed',
+        correlation_id: correlationId,
+        client_transaction_id: clientTransactionId,
+        withdraw_id: withdrawl.id,
+        userId: withdrawl.userId,
+        amount: withdrawl.balance
+      });
+    } catch (err) {
+      logger.logError(err, {
+        operation: 'payout_refund_critical_failure',
+        correlation_id: correlationId,
+        client_transaction_id: clientTransactionId
+      });
+    }
   }
 
   async _updateWithdrawlStatus(clientTransactionId, status, correlationId) {

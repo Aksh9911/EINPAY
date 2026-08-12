@@ -229,6 +229,56 @@ class PlatformService {
   }
 
   /**
+   * Refund withdrawn amount to user wallet on payout reject/fail.
+   * Uses the same add-funds platform API as payin success: PUT /api/user/wallet/balance
+   * (exact amount — no deposit bonus).
+   */
+  async refundFailedPayout({ userId, amount, cryptoname = 'INR', withdrawId, morderId }, correlationId) {
+    const refundAmount = Number(amount);
+
+    logger.info('Refunding failed payout to wallet', {
+      operation: 'platform_payout_refund_start',
+      correlation_id: correlationId,
+      userId,
+      amount: refundAmount,
+      cryptoname,
+      withdrawId,
+      morderId
+    });
+
+    const walletResult = await this.updateWalletBalance({
+      userId,
+      cryptoname: cryptoname || 'INR',
+      balance: refundAmount
+    }, correlationId);
+
+    if (!walletResult.success) {
+      logger.error('CRITICAL: Payout rejected but wallet refund failed', {
+        operation: 'platform_payout_refund_failed',
+        correlation_id: correlationId,
+        userId,
+        amount: refundAmount,
+        withdrawId,
+        morderId,
+        error: walletResult.message
+      });
+      throw new Error(`Wallet refund failed: ${walletResult.message || 'Unknown error'}`);
+    }
+
+    logger.info('Successfully refunded failed payout to wallet', {
+      operation: 'platform_payout_refund_success',
+      correlation_id: correlationId,
+      userId,
+      amount: refundAmount,
+      withdrawId,
+      morderId,
+      response: walletResult.data
+    });
+
+    return walletResult;
+  }
+
+  /**
    * Health check for platform APIs
    */
   async healthCheck() {
