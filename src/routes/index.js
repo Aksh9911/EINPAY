@@ -14,15 +14,15 @@ router.use('/api/einpay/payout', payoutRoutes);
 // Health Check Routes
 router.use('/health', healthRoutes);
 
-// Root endpoint
-router.get('/', (req, res) => {
-  res.json({
-    success: true,
-    service: 'EINPAY Gateway',
-    version: '1.0.0',
-    documentation: '/health',
-    timestamp: new Date().toISOString()
-  });
-});
+const pageNotExisted = (req, res) => {
+  res.status(404).type('text/plain').send('Page not existed');
+};
+
+router.all('/api/docs', pageNotExisted);
+router.all('/api/docs/*', pageNotExisted);
+router.all('/swagger', pageNotExisted);
+router.all('/docs', pageNotExisted);
+
+router.get('/', pageNotExisted);
 
 module.exports = router;
